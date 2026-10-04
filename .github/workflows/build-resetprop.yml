@@ -1,0 +1,50 @@
+name: Build resetprop
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-resetprop:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - name: Build resetprop
+        working-directory: jni
+        run: |
+          ndk-build -j"$(nproc)" APP_ABI=arm64-v8a resetprop
+
+      - name: Collect resetprop artifact
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          BIN_PATH="$(find "$GITHUB_WORKSPACE" -type f -path '*/arm64-v8a/resetprop' | head -n 1)"
+          if [ -z "$BIN_PATH" ]; then
+            echo "resetprop binary not found after build"
+            find "$GITHUB_WORKSPACE" -maxdepth 5 -type d \( -name obj -o -name libs \) -print
+            exit 1
+          fi
+          cp "$BIN_PATH" out/resetprop
+
+      - name: Upload resetprop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: resetprop-arm64-v8a
+          path: out/resetprop
+          if-no-files-found: error
